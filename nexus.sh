@@ -31,83 +31,78 @@ show_status() {
 SERVICE_NAME="nexus"
 SERVICE_FILE="/etc/systemd/system/$SERVICE_NAME.service"
 
-# 更新并升级系统
-show_status "更新并升级系统..." "progress"
-if ! sudo apt update && sudo apt upgrade -y; then
-    show_status "系统更新失败。" "error"
-    exit 1
-fi
+# 显示菜单
+show_menu() {
+    echo "=========================="
+    echo " Nexus XYZ Prover 菜单"
+    echo "=========================="
+    echo "1. 安装依赖"
+    echo "2. 安装 Rust"
+    echo "3. 设置 Nexus 服务"
+    echo "4. 启动 Nexus 服务"
+    echo "5. 检查 Nexus 服务状态"
+    echo "6. 查看 Nexus 服务日志"
+    echo "7. 退出"
+    echo "=========================="
+}
 
-# 安装依赖包
-show_status "安装依赖包..." "progress"
-if ! sudo apt install -y curl iptables build-essential git wget lz4 jq make gcc nano automake autoconf tmux htop nvme-cli pkg-config libssl-dev libleveldb-dev tar clang bsdmainutils ncdu unzip libleveldb-dev; then
-    show_status "依赖包安装失败。" "error"
-    exit 1
-fi
-
-# 安装 Rust
-show_status "正在安装 Rust..." "progress"
-if ! source <(wget -O - https://raw.githubusercontent.com/zunxbt/installation/main/rust.sh); then
-    show_status "Rust 安装失败。" "error"
-    exit 1
-fi
-
-# 添加 Rust 到路径并更新
-show_status "配置 Rust 环境..." "progress"
-source $HOME/.cargo/env
-export PATH="$HOME/.cargo/bin:$PATH"
-if ! rustup update; then
-    show_status "Rust 更新失败。" "error"
-    exit 1
-fi
-show_status "Rust 版本: $(rustc --version)" "success"
-
-# 检查 Git 是否已安装
-if ! command -v git &> /dev/null; then
-    show_status "Git 未安装。正在安装 Git..." "progress"
-    if ! sudo apt install git -y; then
-        show_status "Git 安装失败。" "error"
+# 安装依赖
+install_dependencies() {
+    show_status "更新并升级系统..." "progress"
+    if ! sudo apt update && sudo apt upgrade -y; then
+        show_status "系统更新失败。" "error"
         exit 1
     fi
-else
-    show_status "Git 已安装。" "success"
-fi
 
-# 删除现有的 network-api 目录
-if [ -d "$HOME/network-api" ]; then
-    show_status "正在删除现有的 network-api 仓库..." "progress"
-    rm -rf "$HOME/network-api"
-fi
+    show_status "安装依赖包..." "progress"
+    if ! sudo apt install -y curl iptables build-essential git wget lz4 jq make gcc nano automake autoconf tmux htop nvme-cli pkg-config libssl-dev libleveldb-dev tar clang bsdmainutils ncdu unzip libleveldb-dev; then
+        show_status "依赖包安装失败。" "error"
+        exit 1
+    fi
+    show_status "依赖包安装完成。" "success"
+}
 
-# 克隆 Nexus-XYZ network API 仓库
-show_status "正在克隆 Nexus-XYZ network API 仓库..." "progress"
-if ! git clone https://github.com/nexus-xyz/network-api.git "$HOME/network-api"; then
-    show_status "仓库克隆失败。" "error"
-    exit 1
-fi
+# 安装 Rust
+install_rust() {
+    show_status "正在安装 Rust..." "progress"
+    if ! source <(wget -O - https://raw.githubusercontent.com/zunxbt/installation/main/rust.sh); then
+        show_status "Rust 安装失败。" "error"
+        exit 1
+    fi
+    show_status "配置 Rust 环境..." "progress"
+    source $HOME/.cargo/env
+    export PATH="$HOME/.cargo/bin:$PATH"
+    if ! rustup update; then
+        show_status "Rust 更新失败。" "error"
+        exit 1
+    fi
+    show_status "Rust 版本: $(rustc --version)" "success"
+}
 
-# 切换到 CLI 目录
-cd $HOME/network-api/clients/cli
+# 设置 Nexus 服务
+setup_nexus_service() {
+    show_status "正在创建 Nexus XYZ 服务..." "progress"
+    if [ -d "$HOME/network-api" ]; then
+        show_status "正在删除现有的 network-api 仓库..." "progress"
+        rm -rf "$HOME/network-api"
+    fi
 
-# 安装所需的依赖项
-show_status "正在安装所需依赖项..." "progress"
-if ! sudo apt install pkg-config libssl-dev -y; then
-    show_status "依赖项安装失败。" "error"
-    exit 1
-fi
+    show_status "正在克隆 Nexus-XYZ network API 仓库..." "progress"
+    if ! git clone https://github.com/nexus-xyz/network-api.git "$HOME/network-api"; then
+        show_status "仓库克隆失败。" "error"
+        exit 1
+    fi
 
-# 检查 nexus.service 是否在运行
-if systemctl is-active --quiet nexus.service; then
-    show_status "nexus.service 正在运行。停止并禁用它..." "progress"
-    sudo systemctl stop nexus.service
-    sudo systemctl disable nexus.service
-else
-    show_status "nexus.service 未在运行。" "success"
-fi
+    cd $HOME/network-api/clients/cli
 
-# 创建 systemd 服务
-show_status "正在创建 systemd 服务..." "progress"
-if ! sudo bash -c "cat > $SERVICE_FILE <<EOF
+    show_status "正在安装所需依赖项..." "progress"
+    if ! sudo apt install pkg-config libssl-dev -y; then
+        show_status "依赖项安装失败。" "error"
+        exit 1
+    fi
+
+    show_status "正在创建 systemd 服务..." "progress"
+    if ! sudo bash -c "cat > $SERVICE_FILE <<EOF
 [Unit]
 Description=Nexus XYZ Prover Service
 After=network.target
@@ -123,31 +118,57 @@ RestartSec=10
 [Install]
 WantedBy=multi-user.target
 EOF"; then
-    show_status "systemd 服务文件创建失败。" "error"
-    exit 1
-fi
+        show_status "systemd 服务文件创建失败。" "error"
+        exit 1
+    fi
+    show_status "Nexus 服务设置完成。" "success"
+}
 
-# 重新加载 systemd 并启动服务
-show_status "重新加载 systemd 并启动服务..." "progress"
-if ! sudo systemctl daemon-reload; then
-    show_status "systemd 重新加载失败。" "error"
-    exit 1
-fi
+# 启动 Nexus 服务
+start_nexus_service() {
+    show_status "重新加载 systemd 并启动服务..." "progress"
+    if ! sudo systemctl daemon-reload; then
+        show_status "systemd 重新加载失败。" "error"
+        exit 1
+    fi
 
-if ! sudo systemctl start $SERVICE_NAME.service; then
-    show_status "服务启动失败。" "error"
-    exit 1
-fi
+    if ! sudo systemctl start $SERVICE_NAME.service; then
+        show_status "服务启动失败。" "error"
+        exit 1
+    fi
 
-if ! sudo systemctl enable $SERVICE_NAME.service; then
-    show_status "服务启用失败。" "error"
-    exit 1
-fi
+    if ! sudo systemctl enable $SERVICE_NAME.service; then
+        show_status "服务启用失败。" "error"
+        exit 1
+    fi
 
-# 显示服务状态
-show_status "服务状态:" "progress"
-if ! sudo systemctl status $SERVICE_NAME.service; then
-    show_status "获取服务状态失败。" "error"
-fi
+    show_status "Nexus 服务已启动并已启用。" "success"
+}
 
-show_status "Nexus Prover 安装和服务设置完成！" "success"
+# 检查 Nexus 服务状态
+check_nexus_status() {
+    show_status "服务状态:" "progress"
+    sudo systemctl status $SERVICE_NAME.service
+}
+
+# 查看 Nexus 服务日志
+view_nexus_logs() {
+    show_status "正在显示 Nexus 服务日志..." "progress"
+    sudo journalctl -u $SERVICE_NAME.service -f
+}
+
+# 主程序循环
+while true; do
+    show_menu
+    read -p "请输入选项 [1-7]: " choice
+    case $choice in
+        1) install_dependencies ;;
+        2) install_rust ;;
+        3) setup_nexus_service ;;
+        4) start_nexus_service ;;
+        5) check_nexus_status ;;
+        6) view_nexus_logs ;;
+        7) echo "退出程序。再见！"; exit 0 ;;
+        *) echo "无效选项，请重新输入。" ;;
+    esac
+done
