@@ -60,7 +60,7 @@ install_dependencies() {
     fi
 
     show_status "安装依赖包..." "progress"
-    if ! sudo apt install -y curl iptables build-essential git wget lz4 jq make gcc nano automake autoconf tmux htop nvme-cli pkg-config libssl-dev libleveldb-dev tar clang bsdmainutils ncdu unzip libleveldb-dev; then
+    if ! sudo apt install -y curl iptables build-essential git wget lz4 jq make gcc nano automake autoconf tmux htop nvme-cli pkg-config libssl-dev libleveldb-dev tar clang bsdmainutils ncdu unzip; then
         show_status "依赖包安装失败。" "error"
         exit 1
     fi
@@ -69,17 +69,19 @@ install_dependencies() {
 
 # 安装 Rust
 install_rust() {
-    show_status "正在安装 Rust..." "progress"
-    if ! source <(wget -O - https://raw.githubusercontent.com/zunxbt/installation/main/rust.sh); then
-        show_status "Rust 安装失败。" "error"
-        exit 1
-    fi
-    show_status "配置 Rust 环境..." "progress"
-    source $HOME/.cargo/env
-    export PATH="$HOME/.cargo/bin:$PATH"
-    if ! rustup update; then
-        show_status "Rust 更新失败。" "error"
-        exit 1
+    if command -v rustc >/dev/null 2>&1; then
+        show_status "Rust 已安装，正在更新..." "progress"
+        if ! rustup update; then
+            show_status "Rust 更新失败。" "error"
+            exit 1
+        fi
+    else
+        show_status "正在安装 Rust..." "progress"
+        if ! curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y; then
+            show_status "Rust 安装失败。" "error"
+            exit 1
+        fi
+        source $HOME/.cargo/env
     fi
     show_status "Rust 版本: $(rustc --version)" "success"
 }
@@ -94,11 +96,11 @@ setup_nexus_service() {
 
     show_status "正在克隆 Nexus-XYZ network API 仓库..." "progress"
     if ! git clone https://github.com/nexus-xyz/network-api.git "$HOME/network-api"; then
-        show_status "仓库克隆失败。" "error"
+        show_status "仓库克隆失败，检查网络连接或 GitHub 仓库地址是否正确。" "error"
         exit 1
     fi
 
-    cd $HOME/network-api/clients/cli
+    cd "$HOME/network-api/clients/cli" || { show_status "目录切换失败。" "error"; exit 1; }
 
     show_status "正在安装所需依赖项..." "progress"
     if ! sudo apt install pkg-config libssl-dev -y; then
@@ -106,26 +108,36 @@ setup_nexus_service() {
         exit 1
     fi
 
+    show_status "正在编译 Nexus Prover..." "progress"
+    if ! cargo build --release --bin prover; then
+        show_status "编译失败。" "error"
+        exit 1
+    fi
+
     show_status "正在创建 systemd 服务..." "progress"
-    if ! sudo bash -c "cat > $SERVICE_FILE <<EOF
+    sudo bash -c "cat > $SERVICE_FILE <<EOF
 [Unit]
 Description=Nexus XYZ Prover Service
 After=network.target
 
 [Service]
-User=$USER
+User=$(whoami)
 WorkingDirectory=$HOME/network-api/clients/cli
 Environment=NONINTERACTIVE=1
-ExecStart=$HOME/.cargo/bin/cargo run --release --bin prover -- beta.orchestrator.nexus.xyz
+Environment=PATH=/usr/local/bin:/usr/bin:/bin:$HOME/.cargo/bin
+ExecStart=$HOME/network-api/clients/cli/target/release/prover beta.orchestrator.nexus.xyz
 Restart=always
 RestartSec=10
 
 [Install]
 WantedBy=multi-user.target
-EOF"; then
+EOF"
+
+    if [ $? -ne 0 ]; then
         show_status "systemd 服务文件创建失败。" "error"
         exit 1
     fi
+
     show_status "Nexus 服务设置完成。" "success"
 }
 
