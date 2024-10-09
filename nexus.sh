@@ -46,6 +46,11 @@ show_menu() {
     echo "=========================="
 }
 
+# 添加一个函数以避免重复刷新菜单
+wait_for_input() {
+    echo -n "请输入选项 [1-7]: "
+}
+
 # 安装依赖
 install_dependencies() {
     show_status "更新并升级系统..." "progress"
@@ -160,7 +165,8 @@ view_nexus_logs() {
 # 主程序循环
 while true; do
     show_menu
-    read -p "请输入选项 [1-7]: " choice
+    wait_for_input
+    read -r choice
     case $choice in
         1) install_dependencies ;;
         2) install_rust ;;
@@ -169,6 +175,6 @@ while true; do
         5) check_nexus_status ;;
         6) view_nexus_logs ;;
         7) echo "退出程序。再见！"; exit 0 ;;
-        *) echo "无效选项，请重新输入。" ;;
+        *) echo "无效选项，请重新输入。"; sleep 1 ;;
     esac
 done
