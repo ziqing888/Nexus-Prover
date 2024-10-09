@@ -121,8 +121,15 @@ EOF"; then
 # 检查 Nexus Prover 服务状态的函数
 check_service_status() {
     SERVICE_NAME="nexus"
-    show_status "Nexus Prover 服务状态：" "progress"
+    show_status "正在检查 Nexus Prover 服务状态..." "progress"
     sudo systemctl status $SERVICE_NAME --no-pager
+}
+
+# 检查 Nexus Prover 服务日志的函数
+check_service_logs() {
+    SERVICE_NAME="nexus"
+    show_status "正在查看 Nexus Prover 服务日志..." "progress"
+    sudo journalctl -u $SERVICE_NAME -f -n 50
 }
 
 # 主菜单函数
@@ -131,14 +138,16 @@ main_menu() {
         echo -e "${PINK}${BOLD}该脚本由子清编写，推特 @qklxsqf，免费开源，请勿相信收费${NORMAL}\n"
         echo -e "${PINK}${BOLD}=== Nexus Prover 安装和管理工具 ===${NORMAL}"
         echo "1. 配置并启动 Nexus Prover"
-        echo "2. 检查 Nexus Prover 服务状态"
-        echo "3. 退出"
-        read -p "请选择一个选项 (1-3): " choice
+        echo "2. 检查状态"
+        echo "3. 查看日志"
+        echo "4. 退出"
+        read -p "请选择一个选项 (1-4): " choice
 
         case $choice in
             1) setup_nexus_prover ;;
             2) check_service_status ;;
-            3) echo "退出脚本。再见！"; exit 0 ;;
+            3) check_service_logs ;;
+            4) echo "退出脚本。再见！"; exit 0 ;;
             *) echo "无效选项，请重新输入。";;
         esac
     done
