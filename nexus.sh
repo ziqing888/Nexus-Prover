@@ -129,9 +129,11 @@ if ! sudo systemctl enable $SERVICE_NAME.service; then
     exit 1
 fi
 
-# 显示服务状态
+# 改进的服务状态检查逻辑
 show_status "服务状态：" "progress"
-if ! sudo systemctl status $SERVICE_NAME.service; then
+if sudo systemctl is-active --quiet $SERVICE_NAME.service; then
+    show_status "服务正在运行。" "success"
+else
     show_status "获取服务状态失败。" "error"
 fi
 
